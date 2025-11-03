@@ -5,7 +5,8 @@ import type {
     AdminToken,
     CreateAdminTokenRequest,
     ScanCommandResponse,
-    ProjectResults
+    ProjectResults,
+    AssignQualityGateRequest
 } from '../types/api';
 
 const API_BASE_URL = 'http://localhost:8888/api';
@@ -46,6 +47,13 @@ export const projectApi = {
 export const adminTokenApi = {
   createAdminToken: async (data: CreateAdminTokenRequest): Promise<AdminToken> => {
     const response = await api.post('/admin-token', data);
+    return response.data;
+  },
+};
+
+export const qualityGateApi = {
+  assignQualityGate: async (data: AssignQualityGateRequest): Promise<{ message: string; project_key: string; gate_name: string }> => {
+    const response = await api.post('/quality-gates/assign', data);
     return response.data;
   },
 };

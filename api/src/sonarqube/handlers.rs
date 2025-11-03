@@ -679,3 +679,45 @@ pub async fn get_quality_gate_details(
         }))),
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AssignQualityGateRequest {
+    pub project_key: String,
+    pub gate_name: String,
+}
+
+pub async fn assign_quality_gate_to_project(
+    req: web::Json<AssignQualityGateRequest>,
+    project_service: web::Data<ProjectService>,
+) -> Result<HttpResponse> {
+    let sonar_host_url = env::var("SONAR_HOST_URL").unwrap_or_else(|_| "http://localhost:9000".to_string());
+
+    let admin_token = match project_service.get_admin_token_by_type(&sonar_host_url, "USER_TOKEN").await {
+        Ok(Some(token)) => token,
+        Ok(None) => {
+            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "No USER_TOKEN found for this SonarQube instance. Please create a USER_TOKEN first.",
+                "suggestion": "Use POST /api/admin-token with token_type: 'USER_TOKEN' (must be created with a user that has admin privileges)"
+            })));
+        }
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Database error: {}", e)
+            })));
+        }
+    };
+
+    let sonar_client = SonarQubeClient::new(sonar_host_url.clone(), admin_token);
+
+    if let Err(e) = sonar_client.assign_quality_gate_to_project(&req.project_key, &req.gate_name).await {
+        return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to assign quality gate to project: {}", e)
+        })));
+    }
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "message": "Quality gate assigned to project successfully",
+        "project_key": req.project_key,
+        "gate_name": req.gate_name
+    })))
+}

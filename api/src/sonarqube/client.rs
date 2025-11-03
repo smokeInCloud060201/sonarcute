@@ -488,4 +488,26 @@ pub async fn get_project_quality_gate(&self, project_key: &str) -> Result<Qualit
         let details: serde_json::Value = response.json().await?;
         Ok(details)
     }
+
+    pub async fn assign_quality_gate_to_project(&self, project_key: &str, gate_name: &str) -> Result<()> {
+        let url = format!("{}/api/qualitygates/select", self.base_url);
+        let params = [
+            ("projectKey", project_key.to_string()),
+            ("gateName", gate_name.to_string()),
+        ];
+
+        let response = self.client
+            .post(&url)
+            .header("Authorization", format!("Basic {}", general_purpose::STANDARD.encode(format!("{}:", self.admin_token))))
+            .form(&params)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await?;
+            return Err(anyhow::anyhow!("Failed to assign quality gate to project: {}", error_text));
+        }
+
+        Ok(())
+    }
 }

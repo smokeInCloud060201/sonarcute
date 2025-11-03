@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, FolderOpen, AlertCircle } from 'lucide-react';
 import type {CreateProjectRequest, Project} from '../types/api';
-import { projectApi } from '../services/api';
+import { projectApi, qualityGateApi } from '../services/api';
 
 interface AddProjectModalProps {
   isOpen: boolean;
@@ -44,6 +44,18 @@ export const AddProjectModal = ({ isOpen, onClose, onProjectAdded }: AddProjectM
       };
 
       const newProject = await projectApi.createProject(projectData);
+      
+      // Assign "Kiosk Gate" quality gate to the new project
+      try {
+        await qualityGateApi.assignQualityGate({
+          project_key: projectKey,
+          gate_name: 'Kiosk Gate'
+        });
+      } catch (gateError: any) {
+        // Log error but don't fail the project creation
+        console.warn('Failed to assign quality gate to project:', gateError.response?.data?.error || gateError.message);
+      }
+      
       onProjectAdded(newProject);
       
       setSelectedPath('');

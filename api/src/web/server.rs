@@ -48,6 +48,7 @@ pub async fn start() -> std::io::Result<()> {
                     .route("/quality-gates", web::put().to(handlers::update_quality_gate))
                     .route("/quality-gates", web::delete().to(handlers::delete_quality_gate))
                     .route("/quality-gates/set-default", web::post().to(handlers::set_default_quality_gate))
+                    .route("/quality-gates/assign", web::post().to(handlers::assign_quality_gate_to_project))
             )
     });
 

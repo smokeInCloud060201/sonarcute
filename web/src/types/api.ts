@@ -93,3 +93,8 @@ export interface ProjectResults {
     };
   };
 }
+
+export interface AssignQualityGateRequest {
+  project_key: string;
+  gate_name: string;
+}
