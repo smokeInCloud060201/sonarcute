@@ -22,6 +22,7 @@ SonarCute bridges the gap between SonarQube's powerful code analysis capabilitie
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
 - [Docker Deployment](#docker-deployment)
+- [Quality Gate Configuration](#quality-gate-configuration)
 - [API Documentation](#api-documentation)
 - [Development](#development)
 
@@ -112,7 +113,7 @@ SonarCute bridges the gap between SonarQube's powerful code analysis capabilitie
 1. **Clone the repository**
    ```bash
    git clone <repository-urlunu>
-   cd sonarlint-code-check-report
+   cd sonarcute
    ```
 
 2. **Set up the backend**
@@ -168,6 +169,9 @@ make create-network
 make base-setup  # Starts PostgreSQL and SonarQube
 make app-setup   # Starts API and Web
 make gen-token   # Generate admin tokens
+
+# Helper
+make help
 ```
 
 ## Project Structure
@@ -220,6 +224,143 @@ The frontend API base URL is configured in `web/src/services/api.ts`:
 ```typescript
 const API_BASE_URL = 'http://localhost:8888/api';
 ```
+
+## Quality Gate Configuration
+
+SonarCute uses a custom quality gate named **"Kiosk Gate"** with predefined rules for code quality enforcement. The quality gate configuration is automatically set up via the [`deploy/scripts/quality_gate_setup.sh`](deploy/scripts/quality_gate_setup.sh) script during deployment.
+
+### Quality Gate Rules
+
+The "Kiosk Gate" includes the following conditions:
+
+#### New Code Conditions
+These conditions apply to newly added or modified code:
+
+| Metric | Operator | Threshold | Description |
+|--------|----------|-----------|-------------|
+| `new_software_quality_reliability_rating` | GT | 1 | Reliability rating must be better than 1 (A or B) |
+| `new_software_quality_security_rating` | GT | 1 | Security rating must be better than 1 (A or B) |
+| `new_software_quality_maintainability_rating` | GT | 1 | Maintainability rating must be better than 1 (A or B) |
+| `new_coverage` | LT | 80 | Code coverage must be at least 80% |
+| `new_duplicated_lines_density` | GT | 3 | Duplicated lines must be less than 3% |
+| `new_software_quality_blocker_issues` | GT | 0 | No blocker issues allowed |
+| `new_software_quality_high_issues` | GT | 0 | No high severity issues allowed |
+
+#### Overall Codebase Conditions
+These conditions apply to the entire codebase:
+
+| Metric | Operator | Threshold | Description |
+|--------|----------|-----------|-------------|
+| `software_quality_reliability_rating` | GT | 2 | Overall reliability rating must be better than 2 (A, B, or C) |
+| `software_quality_security_rating` | GT | 2 | Overall security rating must be better than 2 (A, B, or C) |
+| `software_quality_maintainability_rating` | GT | 2 | Overall maintainability rating must be better than 2 (A, B, or C) |
+| `coverage` | LT | 80 | Overall code coverage must be at least 80% |
+| `duplicated_lines_density` | GT | 10 | Overall duplicated lines must be less than 10% |
+| `software_quality_blocker_issues` | GT | 0 | No blocker issues in the codebase |
+| `software_quality_high_issues` | GT | 0 | No high severity issues in the codebase |
+
+### Operator Definitions
+- **GT (Greater Than)**: Fails if the metric value is greater than the threshold (e.g., issues > 0 means no issues allowed)
+- **LT (Less Than)**: Fails if the metric value is less than the threshold (e.g., coverage < 80 means at least 80% required)
+
+### Rating Scale
+Quality ratings use a scale from 1 to 5:
+- **1 = A** (Best)
+- **2 = B**
+- **3 = C**
+- **4 = D**
+- **5 = E** (Worst)
+
+### Updating Quality Gate Rules
+
+You can update quality gate rules in two ways:
+
+#### Method 1: Using the Setup Script
+
+Edit the `conditions` array in [`deploy/scripts/quality_gate_setup.sh`](deploy/scripts/quality_gate_setup.sh) and re-run the setup script. This will delete all existing conditions and add the new ones.
+
+#### Method 2: Using the API
+
+Use the SonarCute API to programmatically update quality gate rules. The following endpoints are available:
+
+##### 1. Get Current Quality Gate Details
+
+Retrieve the current quality gate configuration, including all condition IDs:
+
+```bash
+curl "http://localhost:8888/api/quality-gates/details?name=Kiosk%20Gate"
+```
+
+This returns all conditions with their IDs, which you'll need to delete specific conditions.
+
+##### 2. Update Quality Gate (Add/Delete Conditions)
+
+Use the `PUT /api/quality-gates` endpoint to add or remove conditions:
+
+**Add New Conditions**:
+```bash
+curl -X PUT http://localhost:8888/api/quality-gates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Kiosk Gate",
+    "add_conditions": [
+      {
+        "metric": "new_coverage",
+        "op": "LT",
+        "error": "85"
+      },
+      {
+        "metric": "coverage",
+        "op": "LT",
+        "error": "85"
+      }
+    ]
+  }'
+```
+
+**Delete Existing Conditions**:
+First, get the condition IDs from the details endpoint, then delete them:
+```bash
+curl -X PUT http://localhost:8888/api/quality-gates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Kiosk Gate",
+    "delete_condition_ids": ["1", "2", "3"]
+  }'
+```
+
+**Update Conditions (Delete Old + Add New)**:
+```bash
+curl -X PUT http://localhost:8888/api/quality-gates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Kiosk Gate",
+    "delete_condition_ids": ["1", "2"],
+    "add_conditions": [
+      {
+        "metric": "new_coverage",
+        "op": "LT",
+        "error": "90"
+      }
+    ]
+  }'
+```
+
+##### 3. Available API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/quality-gates` | List all quality gates |
+| `GET` | `/api/quality-gates/details?name={name}` | Get quality gate details with conditions |
+| `POST` | `/api/quality-gates` | Create a new quality gate |
+| `PUT` | `/api/quality-gates` | Update quality gate (add/delete conditions, rename) |
+| `DELETE` | `/api/quality-gates` | Delete a quality gate |
+| `POST` | `/api/quality-gates/set-default` | Set as default quality gate |
+| `POST` | `/api/quality-gates/assign` | Assign quality gate to a project |
+
+**Prerequisites**: A `USER_TOKEN` with admin privileges must exist for the SonarQube instance.
+
+For complete API documentation, see [API Documentation - Quality Gate Management](api/DOCUMENTATION.md#quality-gate-management).
 
 ## Documentation
 

@@ -10,6 +10,7 @@ Complete API endpoint reference for the SonarCute backend service.
   - [Admin Token Management](#admin-token-management)
   - [Project Management](#project-management)
   - [Analysis & Results](#analysis--results)
+  - [Quality Gate Management](#quality-gate-management)
 - [Error Responses](#error-responses)
 - [Examples](#examples)
 
@@ -196,8 +197,6 @@ curl -X POST http://localhost:8888/api/projects \
     "coverage_report_path": "build/reports/jacoco/test/jacocoTestReport.xml"
   }'
 ```
-
-νομα
 
 ---
 
@@ -424,6 +423,355 @@ cd /path/to/project
 ./gradlew test sonar -Dsonar.token=squ_xxx ...
 ```
 
+---
+
+### Quality Gate Management
+
+#### Get All Quality Gates
+
+Retrieve all quality gates from SonarQube.
+
+**Endpoint**: `GET /api/quality-gates`
+
+**Description**: Returns a list of all quality gates available in SonarQube.
+
+**Prerequisites**: A `USER_TOKEN` must exist for the SonarQube instance.
+
+**Response** (200 OK):
+```json
+{
+  "qualitygates": [
+    {
+      "id": "1",
+      "name": "Sonar way",
+      "isDefault": true,
+      "isBuiltIn": true
+    },
+    {
+      "id": "2",
+      "name": "Kiosk Gate",
+      "isDefault": false,
+      "isBuiltIn": false
+    }
+  ]
+}
+```
+
+**Error Responses**:
+- `400 Bad Request`: No USER_TOKEN found
+- `500 Internal Server Error`: Failed to fetch quality gates from SonarQube
+
+**Example**:
+```bash
+curl http://localhost:8888/api/quality-gates
+```
+
+---
+
+#### Get Quality Gate Details
+
+Get detailed information about a specific quality gate, including all conditions.
+
+**Endpoint**: `GET /api/quality-gates/details?name={gate_name}`
+
+**Description**: Returns detailed information about a quality gate, including all its conditions (metrics, operators, thresholds).
+
+**Prerequisites**: A `USER_TOKEN` must exist for the SonarQube instance.
+
+**Query Parameters**:
+- `name` (required): Name of the quality gate
+
+**Response** (200 OK):
+```json
+{
+  "id": "2",
+  "name": "Kiosk Gate",
+  "conditions": [
+    {
+      "id": "1",
+      "metric": "new_coverage",
+      "op": "LT",
+      "error": "80"
+    },
+    {
+      "id": "2",
+      "metric": "new_security_hotspots_reviewed",
+      "op": "LT",
+      "error": "100"
+    }
+  ]
+}
+```
+
+**Error Responses**:
+- `400 Bad Request`: No USER_TOKEN found
+- `500 Internal Server Error`: Failed to fetch quality gate details
+
+**Example**:
+```bash
+curl "http://localhost:8888/api/quality-gates/details?name=Kiosk%20Gate"
+```
+
+---
+
+#### Create Quality Gate
+
+Create a new quality gate in SonarQube.
+
+**Endpoint**: `POST /api/quality-gates`
+
+**Description**: Creates a new quality gate. Optionally, a single condition can be added during creation.
+
+**Prerequisites**: A `USER_TOKEN` with admin privileges must exist.
+
+**Request Body**:
+```json
+{
+  "name": "string",                    // Quality gate name
+  "condition_metric": "string",        // Optional: Metric name
+  "condition_op": "string",            // Optional: Operator (LT, GT, etc.)
+  "condition_error": "string"          // Optional: Error threshold
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "message": "Quality gate created successfully",
+  "name": "My Quality Gate"
+}
+```
+
+**Error Responses**:
+- `400 Bad Request`: No USER_TOKEN found
+- `500 Internal Server Error`: Failed to create quality gate or add condition
+
+**Example**:
+```bash
+curl -X POST http://localhost:8888/api/quality-gates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Quality Gate",
+    "condition_metric": "new_coverage",
+    "condition_op": "LT",
+    "condition_error": "80"
+  }'
+```
+
+---
+
+#### Update Quality Gate
+
+Update an existing quality gate (rename, add conditions, delete conditions).
+
+**Endpoint**: `PUT /api/quality-gates`
+
+**Description**: Updates a quality gate. Supports renaming, adding multiple conditions, and deleting conditions by ID.
+
+**Prerequisites**: A `USER_TOKEN` with admin privileges must exist.
+
+**Request Body**:
+```json
+{
+  "name": "string",                              // Current quality gate name
+  "new_name": "string",                          // Optional: New name for the gate
+  "condition_metric": "string",                  // Optional: Single condition metric (backward compatibility)
+  "condition_op": "string",                      // Optional: Single condition operator
+  "condition_error": "string",                   // Optional: Single condition threshold
+  "add_conditions": [                            // Optional: Multiple conditions to add
+    {
+      "metric": "string",                        // Metric name (e.g., "new_coverage", "coverage")
+      "op": "string",                           // Operator: "LT" (less than), "GT" (greater than)
+      "error": "string"                         // Error threshold (e.g., "80", "1")
+    }
+  ],
+  "delete_condition_ids": ["string"]             // Optional: Array of condition IDs to delete
+}
+```
+
+**Common Metrics**:
+- `new_coverage`, `coverage`: Code coverage percentage
+- `new_security_hotspots_reviewed`, `security_hotspots_reviewed`: Security hotspots reviewed
+- `new_software_quality_reliability_rating`, `software_quality_reliability_rating`: Reliability rating (1-5)
+- `new_software_quality_security_rating`, `software_quality_security_rating`: Security rating (1-5)
+- `new_software_quality_maintainability_rating`, `software_quality_maintainability_rating`: Maintainability rating (1-5)
+- `new_software_quality_blocker_issues`, `software_quality_blocker_issues`: Blocker issues count
+- `new_software_quality_high_issues`, `software_quality_high_issues`: High severity issues count
+- `new_duplicated_lines_density`, `duplicated_lines_density`: Duplicated lines percentage
+
+**Response** (200 OK):
+```json
+{
+  "message": "Quality gate updated successfully",
+  "name": "Updated Gate Name"
+}
+```
+
+**Error Responses**:
+- `400 Bad Request`: No USER_TOKEN found
+- `500 Internal Server Error`: Failed to update quality gate, add condition, or delete condition
+
+**Example - Add Multiple Conditions**:
+```bash
+curl -X PUT http://localhost:8888/api/quality-gates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Kiosk Gate",
+    "add_conditions": [
+      {
+        "metric": "new_coverage",
+        "op": "LT",
+        "error": "80"
+      },
+      {
+        "metric": "new_security_hotspots_reviewed",
+        "op": "LT",
+        "error": "100"
+      }
+    ]
+  }'
+```
+
+**Example - Delete Conditions and Add New Ones**:
+```bash
+curl -X PUT http://localhost:8888/api/quality-gates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Kiosk Gate",
+    "delete_condition_ids": ["1", "2"],
+    "add_conditions": [
+      {
+        "metric": "coverage",
+        "op": "LT",
+        "error": "80"
+      }
+    ]
+  }'
+```
+
+---
+
+#### Delete Quality Gate
+
+Delete a quality gate from SonarQube.
+
+**Endpoint**: `DELETE /api/quality-gates`
+
+**Description**: Deletes a quality gate. Built-in quality gates cannot be deleted.
+
+**Prerequisites**: A `USER_TOKEN` with admin privileges must exist.
+
+**Request Body**:
+```json
+{
+  "name": "string"    // Quality gate name
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "message": "Quality gate deleted successfully",
+  "name": "My Quality Gate"
+}
+```
+
+**Error Responses**:
+- `400 Bad Request`: No USER_TOKEN found
+- `500 Internal Server Error`: Failed to delete quality gate (e.g., if it's built-in or assigned to projects)
+
+**Example**:
+```bash
+curl -X DELETE http://localhost:8888/api/quality-gates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Quality Gate"
+  }'
+```
+
+---
+
+#### Set Default Quality Gate
+
+Set a quality gate as the default for new projects.
+
+**Endpoint**: `POST /api/quality-gates/set-default`
+
+**Description**: Sets a quality gate as the default. All new projects will use this quality gate.
+
+**Prerequisites**: A `USER_TOKEN` with admin privileges must exist.
+
+**Request Body**:
+```json
+{
+  "name": "string"    // Quality gate name
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "message": "Quality gate set as default",
+  "name": "Kiosk Gate"
+}
+```
+
+**Error Responses**:
+- `400 Bad Request`: No USER_TOKEN found
+- `500 Internal Server Error`: Failed to set default quality gate
+
+**Example**:
+```bash
+curl -X POST http://localhost:8888/api/quality-gates/set-default \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Kiosk Gate"
+  }'
+```
+
+---
+
+#### Assign Quality Gate to Project
+
+Assign a quality gate to a specific project.
+
+**Endpoint**: `POST /api/quality-gates/assign`
+
+**Description**: Assigns a quality gate to a project. The project will use this quality gate for analysis evaluation.
+
+**Prerequisites**: A `USER_TOKEN` with admin privileges must exist.
+
+**Request Body**:
+```json
+{
+  "project_key": "string",    // SonarQube project key
+  "gate_name": "string"      // Quality gate name
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "message": "Quality gate assigned to project successfully",
+  "project_key": "my-project",
+  "gate_name": "Kiosk Gate"
+}
+```
+
+**Error Responses**:
+- `400 Bad Request`: No USER_TOKEN found
+- `500 Internal Server Error`: Failed to assign quality gate to project
+
+**Example**:
+```bash
+curl -X POST http://localhost:8888/api/quality-gates/assign \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_key": "my-project",
+    "gate_name": "Kiosk Gate"
+  }'
+```
+
 ## Error Responses
 
 All error responses follow this format:
@@ -532,6 +880,62 @@ curl -X POST http://localhost:8888/api/results \
   -H "Content-Type: application/json" \
   -d '{
     "project_path": "/home/user/projects/example"
+  }'
+```
+
+### Quality Gate Workflow
+
+1. **Create Quality Gate**:
+```bash
+curl -X POST http://localhost:8888/api/quality-gates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Kiosk Gate"
+  }'
+```
+
+2. **Update Quality Gate with Conditions**:
+```bash
+curl -X PUT http://localhost:8888/api/quality-gates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Kiosk Gate",
+    "add_conditions": [
+      {
+        "metric": "new_coverage",
+        "op": "LT",
+        "error": "80"
+      },
+      {
+        "metric": "new_security_hotspots_reviewed",
+        "op": "LT",
+        "error": "100"
+      }
+    ]
+  }'
+```
+
+3. **Get Quality Gate Details**:
+```bash
+curl "http://localhost:8888/api/quality-gates/details?name=Kiosk%20Gate"
+```
+
+4. **Set as Default** (optional):
+```bash
+curl -X POST http://localhost:8888/api/quality-gates/set-default \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Kiosk Gate"
+  }'
+```
+
+5. **Assign to Project** (optional):
+```bash
+curl -X POST http://localhost:8888/api/quality-gates/assign \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_key": "my-project",
+    "gate_name": "Kiosk Gate"
   }'
 ```
 

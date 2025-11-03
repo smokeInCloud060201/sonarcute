@@ -21,6 +21,7 @@ The SonarCute API is a high-performance backend service built with Rust and Acti
 - Admin token management for SonarQube operations
 - SonarQube API integration
 - Code quality metrics retrieval (issues, coverage, quality gates)
+- Quality gate management (create, update, delete, assign to projects)
 - SonarQube scanner command generation
 
 ## Tech Stack
@@ -181,6 +182,13 @@ http://localhost:8888/api
 | DELETE | `/projects` | Delete project |
 | POST | `/results` | Get project analysis results |
 | POST | `/generate-command` | Generate SonarQube scanner command |
+| GET | `/quality-gates` | Get all quality gates |
+| GET | `/quality-gates/details` | Get quality gate details |
+| POST | `/quality-gates` | Create quality gate |
+| PUT | `/quality-gates` | Update quality gate |
+| DELETE | `/quality-gates` | Delete quality gate |
+| POST | `/quality-gates/set-default` | Set default quality gate |
+| POST | `/quality-gates/assign` | Assign quality gate to project |
 
 For detailed endpoint documentation, see [DOCUMENTATION.md](DOCUMENTATION.md).
 
