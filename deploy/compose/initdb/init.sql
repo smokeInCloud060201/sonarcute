@@ -49,3 +49,6 @@ CREATE INDEX IF NOT EXISTS idx_admin_tokens_token_type ON admin_tokens(token_typ
 UPDATE admin_tokens SET token_type = 'USER_TOKEN' WHERE token_type IS NULL OR token_type = '';
 
 
+
+
+CREATE DATABASE sonar_mochi OWNER sonar;
